@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/internal/server"
+	"github.com/organic-programming/go-swift-holons/examples/greeting-daemon/internal/server"
 	"github.com/organic-programming/go-holons/pkg/serve"
 )
 

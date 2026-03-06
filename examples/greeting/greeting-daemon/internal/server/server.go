@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/gen/go/greeting/v1"
-	"github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/internal"
+	pb "github.com/organic-programming/go-swift-holons/examples/greeting-daemon/gen/go/greeting/v1"
+	"github.com/organic-programming/go-swift-holons/examples/greeting-daemon/internal"
 	"github.com/organic-programming/go-holons/pkg/serve"
 
 	"google.golang.org/grpc"

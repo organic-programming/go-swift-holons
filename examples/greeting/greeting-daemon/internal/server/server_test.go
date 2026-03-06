@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	pb "github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/gen/go/greeting/v1"
-	"github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/internal/server"
+	pb "github.com/organic-programming/go-swift-holons/examples/greeting-daemon/gen/go/greeting/v1"
+	"github.com/organic-programming/go-swift-holons/examples/greeting-daemon/internal/server"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

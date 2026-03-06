@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package greeting.v1;
 
-option go_package = "github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/gen/go/greeting/v1;greetingv1";
+option go_package = "github.com/organic-programming/go-swift-holons/examples/greeting-daemon/gen/go/greeting/v1;greetingv1";
 
 service GreetingService {
   // Returns all available greeting languages.

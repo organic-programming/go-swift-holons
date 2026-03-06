@@ -1,4 +1,4 @@
-# GOSWIFT (`go-swiftui-holons`)
+# GOSWIFT (`go-swift-holons`)
 
 Goswift is the recipe stack for composite apps with a Go backend and a
 SwiftUI frontend.
@@ -63,7 +63,7 @@ op build --target macos
 ## Project Structure
 
 ```text
-go-swiftui-holons/
+go-swift-holons/
 ├── README.md
 ├── APPS.md                      # Architecture and integration guide
 ├── scripts/

@@ -294,7 +294,7 @@ const file_greeting_v1_greeting_proto_rawDesc = "" +
 	"\tlang_code\x18\x03 \x01(\tR\blangCode2\xb2\x01\n" +
 	"\x0fGreetingService\x12V\n" +
 	"\rListLanguages\x12!.greeting.v1.ListLanguagesRequest\x1a\".greeting.v1.ListLanguagesResponse\x12G\n" +
-	"\bSayHello\x12\x1c.greeting.v1.SayHelloRequest\x1a\x1d.greeting.v1.SayHelloResponseBfZdgithub.com/organic-programming/go-swiftui-holons/examples/greeting-daemon/gen/go/greeting/v1;greetingv1b\x06proto3"
+	"\bSayHello\x12\x1c.greeting.v1.SayHelloRequest\x1a\x1d.greeting.v1.SayHelloResponseBfZdgithub.com/organic-programming/go-swift-holons/examples/greeting-daemon/gen/go/greeting/v1;greetingv1b\x06proto3"
 
 var (
 	file_greeting_v1_greeting_proto_rawDescOnce sync.Once
