@@ -1,4 +1,4 @@
-module github.com/organic-programming/go-swiftui-holons/examples/greeting-daemon
+module github.com/organic-programming/go-swift-holons/examples/greeting-daemon
 
 go 1.25.1
 

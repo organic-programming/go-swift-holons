@@ -1,6 +1,6 @@
 import Foundation
 import GRPCCore
-import GRPCNIOTransportHTTP2
+import GRPCNIOTransportHTTP2TransportServices
 import GRPCProtobuf
 
 /// gRPC client for the GreetingService running on the Go daemon.
@@ -14,17 +14,20 @@ final class GreetingClient: Sendable {
     }
 
     func listLanguages() async throws -> [Language] {
-        try await withGRPCClient(host: host, port: port) { client in
-            let response = try await client.unary(
-                request: ClientRequest(message: Google_Protobuf_Empty()),
+        try await withConnectedClient(host: host, port: port) { client in
+            let message = try await client.unary(
+                request: ClientRequest(message: Greeting_V1_ListLanguagesRequest()),
                 descriptor: MethodDescriptor(
                     fullyQualifiedService: "greeting.v1.GreetingService",
                     method: "ListLanguages"
                 ),
-                serializer: ProtobufSerializer<Google_Protobuf_Empty>(),
-                deserializer: ProtobufDeserializer<Greeting_V1_ListLanguagesResponse>()
+                serializer: ProtobufSerializer<Greeting_V1_ListLanguagesRequest>(),
+                deserializer: ProtobufDeserializer<Greeting_V1_ListLanguagesResponse>(),
+                options: .defaults,
+                onResponse: { response in
+                try response.message
+                }
             )
-            let message = try response.message
             return message.languages.map { lang in
                 Language(code: lang.code, name: lang.name, native: lang.native_p)
             }
@@ -32,7 +35,7 @@ final class GreetingClient: Sendable {
     }
 
     func sayHello(name: String, langCode: String) async throws -> String {
-        try await withGRPCClient(host: host, port: port) { client in
+        try await withConnectedClient(host: host, port: port) { client in
             var request = Greeting_V1_SayHelloRequest()
             request.name = name
             request.langCode = langCode
@@ -44,27 +47,27 @@ final class GreetingClient: Sendable {
                     method: "SayHello"
                 ),
                 serializer: ProtobufSerializer<Greeting_V1_SayHelloRequest>(),
-                deserializer: ProtobufDeserializer<Greeting_V1_SayHelloResponse>()
+                deserializer: ProtobufDeserializer<Greeting_V1_SayHelloResponse>(),
+                options: .defaults,
+                onResponse: { response in
+                try response.message
+                }
             )
-            return try response.message.greeting
+            return response.greeting
         }
     }
 
-    private func withGRPCClient<T>(
+    private func withConnectedClient<T: Sendable>(
         host: String,
         port: Int,
-        _ body: @Sendable (GRPCClient) async throws -> T
+        _ body: @Sendable (GRPCClient<HTTP2ClientTransport.TransportServices>) async throws -> T
     ) async throws -> T {
-        let transport = try HTTP2ClientTransport.Posix(
-            target: .ipv4(host: host, port: port)
+        let transport = try HTTP2ClientTransport.TransportServices(
+            target: .ipv4(host: host, port: port),
+            transportSecurity: .plaintext
         )
-        let client = GRPCClient(transport: transport)
-
-        return try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await client.run() }
-            let result = try await body(client)
-            client.beginGracefulShutdown()
-            return result
+        return try await withGRPCClient(transport: transport) { client in
+            try await body(client)
         }
     }
 }

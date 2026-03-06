@@ -14,18 +14,25 @@ This repository has two faces:
 ## Start Here
 
 - Want to run the flagship sample now? Read the build instructions below.
-- Want the architecture behind the pattern? Read [APPS.md](APPS.md).
+- Want the architecture behind the pattern? Inspect `examples/greeting/holon.yaml`,
+  `examples/greeting/greeting-daemon/`, and `examples/greeting/greeting-swiftui/`
+  together; the example is the current reference architecture.
 
 ## What Is a Goswift App?
 
 A Goswift app is a SwiftUI application that ships with a Go backend.
 The Go component runs as a headless gRPC daemon; the SwiftUI app is a
-gRPC client. On macOS, the daemon is launched as a subprocess and
-reached over `tcp://localhost`.
+gRPC client. On macOS, the daemon is embedded into the `.app` bundle and
+launched as a subprocess. On iOS, tvOS, watchOS, and visionOS, the app
+connects to an already running daemon over TCP.
 
 | Platform | Transport | Go artifact | Launch |
 |----------|-----------|-------------|--------|
-| macOS    | `tcp://`  | Standalone binary | `Process()` |
+| macOS    | `tcp://localhost` | Bundled daemon binary | Embedded `Process()` |
+| iOS      | `tcp://<host>:<port>` | External daemon | Remote client |
+| tvOS     | `tcp://<host>:<port>` | External daemon | Remote client |
+| watchOS  | `tcp://<host>:<port>` | External daemon | Remote client |
+| visionOS | `tcp://<host>:<port>` | External daemon | Remote client |
 
 ## Gudule Greeting Goswift
 
@@ -38,26 +45,37 @@ languages. Source layout:
 ### Build & Run (macOS)
 
 ```bash
-# 1. Build the daemon
-cd examples/greeting/greeting-daemon
-go build -o gudule-daemon-greeting-goswift ./cmd/daemon
-
-# 2. Build the SwiftUI app
-cd ../greeting-swiftui
-swift build
-
-# 3. Run the daemon
-../greeting-daemon/gudule-daemon-greeting-goswift serve &
-
-# 4. Run the app
-.build/debug/GreetingSwiftUI
+cd examples/greeting
+op build --target macos
+open greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
 ```
 
-Or, with `op`:
+### Build Other Apple Targets
 
 ```bash
 cd examples/greeting
-op build --target macos
+op build --target ios
+op build --target tvos
+op build --target watchos
+op build --target visionos
+```
+
+Notes:
+
+- iOS, tvOS, watchOS, and visionOS builds require the corresponding Xcode
+  platform components to be installed locally.
+- Non-macOS targets do not embed the Go daemon. Set
+  `GUDULE_DAEMON_HOST` and `GUDULE_DAEMON_PORT` so the app can reach a
+  daemon running elsewhere on your network.
+- The current macOS recipe produces a runnable `.app`; the other Apple
+  targets produce app bundles when the matching platform SDKs are
+  present.
+
+### SwiftUI-Only Sanity Check
+
+```bash
+cd examples/greeting/greeting-swiftui
+swift build
 ```
 
 ## Project Structure

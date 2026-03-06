@@ -10,10 +10,19 @@ struct ContentView: View {
     @State private var error: String?
 
     var body: some View {
-        HStack(spacing: 0) {
-            languageList
-            Divider()
-            greetingPanel
+        Group {
+#if os(watchOS)
+            VStack(spacing: 12) {
+                languageList
+                greetingPanel
+            }
+#else
+            HStack(spacing: 0) {
+                languageList
+                Divider()
+                greetingPanel
+            }
+#endif
         }
         .task { await loadLanguages() }
     }
@@ -21,21 +30,31 @@ struct ContentView: View {
     // MARK: - Language List
 
     private var languageList: some View {
-        List(languages, id: \.code, selection: $selectedCode) { lang in
-            HStack {
-                Text(lang.native)
-                    .font(.body)
-                Spacer()
-                Text(lang.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        List {
+            ForEach(Array(languages.enumerated()), id: \.element.id) { _, lang in
+                Button {
+                    selectedCode = lang.code
+                    Task { await greet(code: lang.code) }
+                } label: {
+                    HStack {
+                        Text(lang.native)
+                            .font(.body)
+                        Spacer()
+                        if selectedCode == lang.code {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        Text(lang.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            .tag(lang.code)
         }
+#if !os(watchOS)
         .frame(minWidth: 200)
-        .onChange(of: selectedCode) { _, code in
-            Task { await greet(code: code) }
-        }
+#endif
     }
 
     // MARK: - Greeting Panel

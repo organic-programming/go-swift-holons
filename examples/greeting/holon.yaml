@@ -18,8 +18,10 @@ generated_by: manual
 description: |
   A composite Goswift holon: a Go gRPC daemon (greeting-daemon) paired
   with a SwiftUI app (greeting-swiftui). Together they form a single
-  macOS application that greets users in 56 languages. The daemon serves
-  the GreetingService contract; the SwiftUI app connects over TCP.
+  Apple-platform application family that greets users in 56 languages.
+  On macOS the daemon is embedded and launched locally; on iOS, tvOS,
+  watchOS, and visionOS the SwiftUI app connects to a reachable daemon
+  over TCP.
 
 # ── Operational ───────────────────────────────────────
 kind: composite
@@ -41,15 +43,61 @@ build:
         - build_member: daemon
         - exec:
             cwd: greeting-swiftui
-            argv: ["swift", "build"]
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=macOS", "-derivedDataPath", ".build/xcode/macos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - copy:
+            from: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI
+            to: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app/Contents/MacOS/GreetingSwiftUI
+        - copy:
+            from: greeting-daemon/gudule-daemon-greeting-goswift
+            to: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app/Contents/MacOS/gudule-daemon-greeting-goswift
         - assert_file:
-            path: greeting-swiftui/.build/debug/GreetingSwiftUI
+            path: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app/Contents/MacOS/GreetingSwiftUI
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app/Contents/MacOS/gudule-daemon-greeting-goswift
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
+    ios:
+      steps:
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=iOS", "-derivedDataPath", ".build/xcode/ios", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI.app
+    tvos:
+      steps:
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=tvOS", "-derivedDataPath", ".build/xcode/tvos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI.app
+    watchos:
+      steps:
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=watchOS", "-derivedDataPath", ".build/xcode/watchos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI.app
+    visionos:
+      steps:
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=visionOS", "-derivedDataPath", ".build/xcode/visionos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI.app
 requires:
-  commands: [go, swift]
+  commands: [go, xcodebuild]
   files: [greeting-daemon/go.mod, greeting-swiftui/Package.swift]
-platforms: [macos]
+platforms: [macos, ios, tvos, watchos, visionos]
 artifacts:
   primary_by_target:
     macos:
-      debug: greeting-swiftui/.build/debug/GreetingSwiftUI
+      debug: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
+    ios:
+      debug: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI.app
+    tvos:
+      debug: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI.app
+    watchos:
+      debug: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI.app
+    visionos:
+      debug: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI.app
   binary: gudule-greeting-goswift

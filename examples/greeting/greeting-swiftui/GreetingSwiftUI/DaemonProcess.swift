@@ -2,46 +2,42 @@ import Foundation
 
 /// Manages the lifecycle of the Go greeting daemon subprocess.
 ///
-/// On macOS the daemon communicates via a TCP listener on localhost.
-/// The process is launched when `start()` is called and terminated on deinit.
+/// On macOS the daemon can be launched from the app bundle or the local build tree.
+/// On iOS, tvOS, watchOS, and visionOS the app connects to an already running daemon.
 @MainActor
 final class DaemonProcess: ObservableObject {
     @Published var isRunning = false
     @Published var connectionError: String?
 
+#if os(macOS)
     private var process: Process?
+#endif
     private var client: GreetingClient?
+    private let configuration = DaemonConfiguration.current
 
-    /// The localhost port the daemon listens on.
-    private let port: Int = 9091
-
-    /// Locates the daemon binary bundled alongside the app or in the build dir.
-    private var daemonPath: String {
-        // In a built .app bundle, the daemon sits next to the app binary.
-        let bundle = Bundle.main.bundlePath
-        let bundledPath = (bundle as NSString)
-            .deletingLastPathComponent
-            .appending("/gudule-daemon-greeting-goswift")
-
-        if FileManager.default.fileExists(atPath: bundledPath) {
-            return bundledPath
-        }
-
-        // Fallback: look in the greeting-daemon directory (dev mode).
-        let devPath = (bundle as NSString)
-            .deletingLastPathComponent
-            .appending("/../greeting-daemon/gudule-daemon-greeting-goswift")
-        return devPath
-    }
+    private var host: String { configuration.host }
+    private var port: Int { configuration.port }
 
     func start() {
-        guard process == nil else { return }
-        let path = daemonPath
-        guard FileManager.default.fileExists(atPath: path) else {
-            connectionError = "Daemon binary not found at \(path). Run `op build` first."
+        guard client == nil else { return }
+        connectionError = nil
+
+#if os(macOS)
+        if configuration.launchStrategy == .embeddedIfAvailable, let path = daemonPath() {
+            startEmbeddedDaemon(at: path)
             return
         }
+#endif
+        connectToRemoteDaemon()
+    }
 
+    private func connectToRemoteDaemon() {
+        client = GreetingClient(host: host, port: port)
+        isRunning = true
+    }
+
+#if os(macOS)
+    private func startEmbeddedDaemon(at path: String) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = ["serve", "--listen", "tcp://:\(port)"]
@@ -54,16 +50,46 @@ final class DaemonProcess: ObservableObject {
             // Give the daemon a moment to start listening.
             Task {
                 try? await Task.sleep(for: .milliseconds(500))
-                client = GreetingClient(host: "localhost", port: port)
+                client = GreetingClient(host: host, port: port)
             }
         } catch {
-            connectionError = "Failed to start daemon: \(error.localizedDescription)"
+            connectionError = "Failed to start bundled daemon: \(error.localizedDescription)"
+            connectToRemoteDaemon()
         }
     }
 
+    private func daemonPath() -> String? {
+        let fileManager = FileManager.default
+        for candidate in daemonCandidates() {
+            if fileManager.fileExists(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private func daemonCandidates() -> [String] {
+        var candidates: [String] = []
+
+        if let executableURL = Bundle.main.executableURL {
+            let executableDir = executableURL.deletingLastPathComponent().path
+            candidates.append((executableDir as NSString).appendingPathComponent("gudule-daemon-greeting-goswift"))
+        }
+
+        let bundle = Bundle.main.bundlePath
+        let bundleParent = (bundle as NSString).deletingLastPathComponent
+        candidates.append((bundleParent as NSString).appendingPathComponent("gudule-daemon-greeting-goswift"))
+        candidates.append((bundleParent as NSString).appendingPathComponent("../greeting-daemon/gudule-daemon-greeting-goswift"))
+
+        return candidates
+    }
+#endif
+
     func stop() {
+#if os(macOS)
         process?.terminate()
         process = nil
+#endif
         client = nil
         isRunning = false
     }
@@ -91,7 +117,39 @@ final class DaemonProcess: ObservableObject {
     }
 
     deinit {
+#if os(macOS)
         process?.terminate()
+#endif
+    }
+}
+
+private struct DaemonConfiguration {
+    enum LaunchStrategy {
+        case embeddedIfAvailable
+        case remoteOnly
+    }
+
+    let host: String
+    let port: Int
+    let launchStrategy: LaunchStrategy
+
+    static let current = DaemonConfiguration()
+
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        let configuredHost = environment["GUDULE_DAEMON_HOST"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        host = configuredHost.nonEmpty ?? "127.0.0.1"
+        port = Int(environment["GUDULE_DAEMON_PORT"] ?? "") ?? 9091
+#if os(macOS)
+        launchStrategy = environment["GUDULE_DAEMON_AUTOSTART"] == "0" ? .remoteOnly : .embeddedIfAvailable
+#else
+        launchStrategy = .remoteOnly
+#endif
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
     }
 }
 
