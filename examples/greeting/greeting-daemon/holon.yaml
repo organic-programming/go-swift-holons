@@ -1,0 +1,32 @@
+# ── Identity ──────────────────────────────────────────
+schema: holon/v0
+uuid: "2b519b2f-7a34-4957-a0ab-58c1b7fa9f95"
+given_name: greeting-daemon
+family_name: Greeting-Goswift
+motto: Greets users in 56 languages — a Goswift recipe example.
+composer: B. ALTER
+clade: deterministic/pure
+status: draft
+born: "2026-03-06"
+
+# ── Lineage ───────────────────────────────────────────
+parents: []
+reproduction: manual
+generated_by: manual
+
+# ── Description ───────────────────────────────────────
+description: |
+  A Go gRPC daemon that greets users in 56 languages. Designed to be
+  embedded in a SwiftUI app (Goswift pattern) but also usable standalone.
+  Demonstrates the daemon half of a cross-language recipe.
+
+# ── Operational ───────────────────────────────────────
+kind: native
+build:
+  runner: go-module
+  main: ./cmd/daemon
+requires:
+  commands: [go]
+  files: [go.mod]
+artifacts:
+  binary: gudule-daemon-greeting-goswift

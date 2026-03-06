@@ -1,0 +1,7 @@
+.build/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+gudule-daemon-greeting-goswift
+gudule-greeting-goswift

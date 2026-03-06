@@ -1,0 +1,55 @@
+# ── Identity ──────────────────────────────────────────
+schema: holon/v0
+uuid: "3c62ac3f-8b45-5068-b1bc-69d2c8fb0a06"
+given_name: gudule
+family_name: Greeting-Goswift
+motto: Greets users in 56 languages — Go backend, SwiftUI frontend.
+composer: B. ALTER
+clade: deterministic/pure
+status: draft
+born: "2026-03-06"
+
+# ── Lineage ───────────────────────────────────────────
+parents: []
+reproduction: manual
+generated_by: manual
+
+# ── Description ───────────────────────────────────────
+description: |
+  A composite Goswift holon: a Go gRPC daemon (greeting-daemon) paired
+  with a SwiftUI app (greeting-swiftui). Together they form a single
+  macOS application that greets users in 56 languages. The daemon serves
+  the GreetingService contract; the SwiftUI app connects over TCP.
+
+# ── Operational ───────────────────────────────────────
+kind: composite
+build:
+  runner: recipe
+  defaults:
+    target: macos
+    mode: debug
+  members:
+    - id: daemon
+      path: greeting-daemon
+      type: holon
+    - id: app
+      path: greeting-swiftui
+      type: component
+  targets:
+    macos:
+      steps:
+        - build_member: daemon
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["swift", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/debug/GreetingSwiftUI
+requires:
+  commands: [go, swift]
+  files: [greeting-daemon/go.mod, greeting-swiftui/Package.swift]
+platforms: [macos]
+artifacts:
+  primary_by_target:
+    macos:
+      debug: greeting-swiftui/.build/debug/GreetingSwiftUI
+  binary: gudule-greeting-goswift
