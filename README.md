@@ -54,7 +54,9 @@ open greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.ap
 
 ```bash
 cd examples/greeting
+op build --target all
 op build --target ios
+op build --target ios-simulator
 op build --target tvos
 op build --target watchos
 op build --target visionos
@@ -64,12 +66,59 @@ Notes:
 
 - iOS, tvOS, watchOS, and visionOS builds require the corresponding Xcode
   platform components to be installed locally.
+- `op build --target all` works for this recipe and walks every declared
+  recipe target in order, stopping on the first target that fails.
 - Non-macOS targets do not embed the Go daemon. Set
   `GUDULE_DAEMON_HOST` and `GUDULE_DAEMON_PORT` so the app can reach a
   daemon running elsewhere on your network.
-- The current macOS recipe produces a runnable `.app`; the other Apple
-  targets produce app bundles when the matching platform SDKs are
-  present.
+- `macos` produces a runnable `.app` with the embedded daemon.
+- `ios-simulator` produces a runnable `.app` wrapper around the SwiftPM
+  executable so it can be installed with `simctl`.
+- `ios`, `tvos`, `watchos`, and `visionos` currently resolve to the
+  platform executable inside Xcode derived data.
+
+### Build & Launch (iOS Simulator)
+
+Start a daemon on the Mac host:
+
+```bash
+cd examples/greeting/greeting-daemon
+go run ./cmd/daemon serve --listen tcp://127.0.0.1:9091
+```
+
+Build the simulator app bundle:
+
+```bash
+cd ../
+op build --target ios-simulator
+```
+
+Boot the Simulator, install the app, then launch it with the daemon host
+and port in the process environment:
+
+```bash
+open -a Simulator
+xcrun simctl boot "iPhone 16"
+
+APP="greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/GreetingSwiftUI.app"
+BUNDLE_ID="org.organicprogramming.greeting-swiftui"
+
+xcrun simctl install booted "$APP"
+SIMCTL_CHILD_GUDULE_DAEMON_HOST=127.0.0.1 \
+SIMCTL_CHILD_GUDULE_DAEMON_PORT=9091 \
+xcrun simctl launch booted "$BUNDLE_ID" \
+  --console \
+  --terminate-running-process
+```
+
+Notes:
+
+- On iOS Simulator, `127.0.0.1` is the Mac host, so the app can reach a
+  daemon listening on the machine running Xcode.
+- `op build --target ios-simulator` creates the installable `.app`
+  wrapper in `greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/`.
+- If a simulator is already booted, replace `xcrun simctl boot "iPhone 16"`
+  with `xcrun simctl bootstatus booted -b`.
 
 ### SwiftUI-Only Sanity Check
 

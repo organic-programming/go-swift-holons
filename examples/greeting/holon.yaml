@@ -62,42 +62,56 @@ build:
             cwd: greeting-swiftui
             argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=iOS", "-derivedDataPath", ".build/xcode/ios", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
         - assert_file:
-            path: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI.app
+            path: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI
+    ios-simulator:
+      steps:
+        - exec:
+            cwd: greeting-swiftui
+            argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", ".build/xcode/ios-simulator", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/GreetingSwiftUI
+        - exec:
+            cwd: .
+            argv: ["bash", "scripts/package_ios_simulator_app.sh", "greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator", "GreetingSwiftUI", "org.organicprogramming.greeting-swiftui", "18.0"]
+        - assert_file:
+            path: greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/GreetingSwiftUI.app
     tvos:
       steps:
         - exec:
             cwd: greeting-swiftui
             argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=tvOS", "-derivedDataPath", ".build/xcode/tvos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
         - assert_file:
-            path: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI.app
+            path: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI
     watchos:
       steps:
         - exec:
             cwd: greeting-swiftui
             argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=watchOS", "-derivedDataPath", ".build/xcode/watchos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
         - assert_file:
-            path: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI.app
+            path: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI
     visionos:
       steps:
         - exec:
             cwd: greeting-swiftui
             argv: ["xcodebuild", "-scheme", "GreetingSwiftUI", "-configuration", "Debug", "-destination", "generic/platform=visionOS", "-derivedDataPath", ".build/xcode/visionos", "-clonedSourcePackagesDirPath", ".build/xcode/source-packages", "build"]
         - assert_file:
-            path: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI.app
+            path: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI
 requires:
-  commands: [go, xcodebuild]
+  commands: [bash, codesign, go, xcodebuild]
   files: [greeting-daemon/go.mod, greeting-swiftui/Package.swift]
-platforms: [macos, ios, tvos, watchos, visionos]
+platforms: [macos, ios, ios-simulator, tvos, watchos, visionos]
 artifacts:
   primary_by_target:
     macos:
       debug: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
     ios:
-      debug: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI.app
+      debug: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI
+    ios-simulator:
+      debug: greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/GreetingSwiftUI.app
     tvos:
-      debug: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI.app
+      debug: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI
     watchos:
-      debug: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI.app
+      debug: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI
     visionos:
-      debug: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI.app
+      debug: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI
   binary: gudule-greeting-goswift
