@@ -32,7 +32,7 @@ Both sides share a single `.proto` definition:
 | UI framework | Flutter (cross-platform) | SwiftUI (Apple-only) |
 | Platforms | macOS, Linux, Windows, iOS, Android | macOS only (for now) |
 | gRPC client library | dart-holons SDK | grpc-swift |
-| Desktop transport | stdio:// pipes | tcp:// localhost |
+| Desktop transport | `connect(slug)` → ephemeral localhost TCP | tcp:// localhost |
 | Proto codegen | protoc + dart plugin | protoc + swift plugin |
 | Build tool | `flutter build` | `swift build` / `xcodebuild` |
 
