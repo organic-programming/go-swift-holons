@@ -22,17 +22,19 @@ This repository has two faces:
 
 A Goswift app is a SwiftUI application that ships with a Go backend.
 The Go component runs as a headless gRPC daemon; the SwiftUI app is a
-gRPC client. On macOS, the daemon is embedded into the `.app` bundle and
-launched as a subprocess. On iOS, tvOS, watchOS, and visionOS, the app
-connects to an already running daemon over TCP.
+gRPC client. On macOS, the daemon is embedded into the `.app` bundle,
+staged as a discoverable holon, and launched through
+`swift-holons connect(slug)`. On iOS, tvOS, watchOS, and visionOS, the
+app connects to an already running daemon through the SDK's direct-dial
+`connect(host:port)` path.
 
 | Platform | Transport | Go artifact | Launch |
 |----------|-----------|-------------|--------|
-| macOS    | `tcp://localhost` | Bundled daemon binary | Embedded `Process()` |
-| iOS      | `tcp://<host>:<port>` | External daemon | Remote client |
-| tvOS     | `tcp://<host>:<port>` | External daemon | Remote client |
-| watchOS  | `tcp://<host>:<port>` | External daemon | Remote client |
-| visionOS | `tcp://<host>:<port>` | External daemon | Remote client |
+| macOS    | `connect("gudule-daemon-greeting-goswift")` | Bundled daemon binary | Auto-started holon |
+| iOS      | `connect("<host>:<port>")` | External daemon | Remote client |
+| tvOS     | `connect("<host>:<port>")` | External daemon | Remote client |
+| watchOS  | `connect("<host>:<port>")` | External daemon | Remote client |
+| visionOS | `connect("<host>:<port>")` | External daemon | Remote client |
 
 ## Gudule Greeting Goswift
 
@@ -147,7 +149,7 @@ go-swift-holons/
 | SDK | Role |
 |-----|------|
 | [go-holons](https://github.com/organic-programming/go-holons) | Go transport, serving, and identity |
-| [grpc-swift](https://github.com/grpc/grpc-swift) | Swift gRPC client |
+| [swift-holons](https://github.com/organic-programming/swift-holons) | Swift connect and runtime discovery |
 
 ## See Also
 

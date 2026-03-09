@@ -1,18 +1,23 @@
 import Foundation
+#if os(macOS)
+import Holons
+#endif
 
 /// Manages the lifecycle of the Go greeting daemon subprocess.
 ///
-/// On macOS the daemon can be launched from the app bundle or the local build tree.
+/// On macOS the daemon is staged as a discoverable holon and launched via `connect(slug)`.
 /// On iOS, tvOS, watchOS, and visionOS the app connects to an already running daemon.
 @MainActor
 final class DaemonProcess: ObservableObject {
     @Published var isRunning = false
     @Published var connectionError: String?
 
-#if os(macOS)
-    private var process: Process?
-#endif
+    private static let holonSlug = "gudule-daemon-greeting-goswift"
+    private static let holonUUID = "2b519b2f-7a34-4957-a0ab-58c1b7fa9f95"
+    private static let familyName = "Greeting-Goswift"
+
     private var client: GreetingClient?
+    private var stageRoot: URL?
     private let configuration = DaemonConfiguration.current
 
     private var host: String { configuration.host }
@@ -32,27 +37,43 @@ final class DaemonProcess: ObservableObject {
     }
 
     private func connectToRemoteDaemon() {
-        client = GreetingClient(host: host, port: port)
-        isRunning = true
+        do {
+            client = try GreetingClient.direct(host: host, port: port)
+            isRunning = true
+        } catch {
+            connectionError = "Failed to connect to daemon at \(host):\(port): \(error.localizedDescription)"
+            isRunning = false
+        }
     }
 
 #if os(macOS)
     private func startEmbeddedDaemon(at path: String) {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: path)
-        proc.arguments = ["serve", "--listen", "tcp://:\(port)"]
-
+        var root: URL?
         do {
-            try proc.run()
-            process = proc
-            isRunning = true
-
-            // Give the daemon a moment to start listening.
-            Task {
-                try? await Task.sleep(for: .milliseconds(500))
-                client = GreetingClient(host: host, port: port)
+            root = try stageHolonRoot(binaryPath: path)
+            guard let root else {
+                throw CocoaError(.fileNoSuchFile)
             }
+            stageRoot = root
+
+            let previousDirectory = FileManager.default.currentDirectoryPath
+            guard FileManager.default.changeCurrentDirectoryPath(root.path) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            defer {
+                FileManager.default.changeCurrentDirectoryPath(previousDirectory)
+            }
+
+            let channel = try connect(Self.holonSlug)
+            client = GreetingClient(channel: channel) {
+                try disconnect(channel)
+            }
+            isRunning = true
         } catch {
+            if let root {
+                try? FileManager.default.removeItem(at: root)
+            }
+            stageRoot = nil
             connectionError = "Failed to start bundled daemon: \(error.localizedDescription)"
             connectToRemoteDaemon()
         }
@@ -83,14 +104,60 @@ final class DaemonProcess: ObservableObject {
 
         return candidates
     }
+
+    private func stageHolonRoot(binaryPath: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("greeting-goswift-holon-\(UUID().uuidString)", isDirectory: true)
+        let holonDir = root
+            .appendingPathComponent("holons", isDirectory: true)
+            .appendingPathComponent(Self.holonSlug, isDirectory: true)
+        try FileManager.default.createDirectory(at: holonDir, withIntermediateDirectories: true)
+        try buildManifest(binaryPath: binaryPath)
+            .write(to: holonDir.appendingPathComponent("holon.yaml"), atomically: true, encoding: .utf8)
+        return root
+    }
+
+    private func buildManifest(binaryPath: String) -> String {
+        let escapedPath = binaryPath
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return """
+schema: holon/v0
+uuid: "\(Self.holonUUID)"
+given_name: greeting-daemon
+family_name: "\(Self.familyName)"
+motto: Greets users in 56 languages — a Goswift recipe example.
+composer: B. ALTER
+clade: deterministic/pure
+status: draft
+born: "2026-03-06"
+generated_by: manual
+kind: native
+build:
+  runner: go-module
+artifacts:
+  binary: "\(escapedPath)"
+""" + "\n"
+    }
 #endif
 
     func stop() {
-#if os(macOS)
-        process?.terminate()
-        process = nil
-#endif
+        let currentClient = client
         client = nil
+        let root = stageRoot
+        stageRoot = nil
+
+        do {
+            try currentClient?.close()
+        } catch {
+            connectionError = "Failed to stop daemon connection: \(error.localizedDescription)"
+        }
+
+#if os(macOS)
+        if let root {
+            try? FileManager.default.removeItem(at: root)
+        }
+#endif
         isRunning = false
     }
 
@@ -98,11 +165,6 @@ final class DaemonProcess: ObservableObject {
 
     func listLanguages() async throws -> [Language] {
         if client == nil { start() }
-        // Wait for client to initialize.
-        for _ in 0..<10 {
-            if client != nil { break }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
         guard let client else {
             throw DaemonError.notConnected
         }
@@ -117,9 +179,10 @@ final class DaemonProcess: ObservableObject {
     }
 
     deinit {
-#if os(macOS)
-        process?.terminate()
-#endif
+        try? client?.close()
+        if let stageRoot {
+            try? FileManager.default.removeItem(at: stageRoot)
+        }
     }
 }
 

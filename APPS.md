@@ -8,15 +8,22 @@ presentation layer.
 
 ## Communication
 
-On macOS, the daemon is launched as a child process via `Foundation.Process`.
-The SwiftUI app connects to it over TCP on `localhost:9091`.
+On macOS, the SwiftUI app stages the bundled daemon as a temporary holon
+and calls `connect("gudule-daemon-greeting-goswift")` from
+`swift-holons`. The SDK discovers the staged manifest, launches the
+daemon, and returns a gRPC channel.
 
 ```
-┌─────────────────┐     TCP     ┌─────────────────┐
-│  SwiftUI App    │────────────▶│  Go Daemon       │
-│  (gRPC client)  │             │  (gRPC server)   │
+┌─────────────────┐  connect(slug) ┌─────────────────┐
+│  SwiftUI App    │───────────────▶│  Go Daemon       │
+│  (swift-holons) │                │  (gRPC server)   │
 └─────────────────┘             └─────────────────┘
 ```
+
+On iOS, tvOS, watchOS, and visionOS, the app still talks to an already
+running daemon, but it does so through the SDK's direct-dial
+`connect("<host>:<port>")` path rather than constructing the transport
+manually.
 
 ## Proto Contract
 
@@ -31,16 +38,17 @@ Both sides share a single `.proto` definition:
 |--------|--------|---------|
 | UI framework | Flutter (cross-platform) | SwiftUI (Apple-only) |
 | Platforms | macOS, Linux, Windows, iOS, Android | macOS only (for now) |
-| gRPC client library | dart-holons SDK | grpc-swift |
-| Desktop transport | `connect(slug)` → ephemeral localhost TCP | tcp:// localhost |
+| gRPC client library | dart-holons SDK | swift-holons SDK |
+| Desktop transport | `connect(slug)` → ephemeral localhost TCP | `connect(slug)` |
 | Proto codegen | protoc + dart plugin | protoc + swift plugin |
 | Build tool | `flutter build` | `swift build` / `xcodebuild` |
 
-## Why TCP Instead of Stdio?
+## Why `connect(slug)`?
 
-grpc-swift v2 expects an NIO-based transport. The simplest production-ready
-option is TCP on localhost. This also makes debugging easier (you can `grpcurl`
-the daemon directly).
+The recipe now relies on the same SDK abstraction as the other migrated
+desktop stacks: the frontend names the daemon by slug, stages a
+temporary `holon.yaml`, and lets the SDK own startup, connection, and
+shutdown.
 
 ## Bundle Strategy (Future)
 
