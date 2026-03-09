@@ -5,9 +5,6 @@ import AppKit
 
 @main
 struct GreetingSwiftUIApp: App {
-    #if os(macOS)
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    #endif
     @StateObject private var daemon = DaemonProcess()
 
     var body: some Scene {
@@ -25,13 +22,3 @@ struct GreetingSwiftUIApp: App {
         }
     }
 }
-
-#if os(macOS)
-/// Quit the app when the user closes the last window, so that
-/// `op run` exits cleanly instead of staying stuck.
-class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
-    }
-}
-#endif
