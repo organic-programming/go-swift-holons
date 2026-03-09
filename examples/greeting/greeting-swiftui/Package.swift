@@ -26,7 +26,7 @@ let package = Package(
                     condition: .when(platforms: [.macOS])
                 ),
                 .product(name: "GRPC", package: "grpc-swift"),
-                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],
             path: "GreetingSwiftUI"

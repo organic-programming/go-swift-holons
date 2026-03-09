@@ -1,8 +1,10 @@
 import Foundation
 import GRPC
 import NIOCore
-import NIOPosix
 import SwiftProtobuf
+#if os(macOS)
+import Holons
+#endif
 
 /// gRPC client for the GreetingService running on the Go daemon.
 final class GreetingClient: GRPCClient, @unchecked Sendable {
@@ -15,13 +17,15 @@ final class GreetingClient: GRPCClient, @unchecked Sendable {
         self.closeAction = closeAction
     }
 
-    static func direct(host: String, port: Int) throws -> GreetingClient {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let channel = ClientConnection.insecure(group: group).connect(host: host, port: port)
+    static func connected(to target: String, options: ConnectOptions = ConnectOptions()) throws -> GreetingClient {
+#if os(macOS)
+        let channel = try connect(target, options: options)
         return GreetingClient(channel: channel) {
-            try channel.close().wait()
-            try group.syncShutdownGracefully()
+            try disconnect(channel)
         }
+#else
+        throw GreetingClientError.unsupportedPlatform
+#endif
     }
 
     func listLanguages() async throws -> [Language] {
@@ -50,6 +54,17 @@ final class GreetingClient: GRPCClient, @unchecked Sendable {
 
     func close() throws {
         try closeAction()
+    }
+}
+
+enum GreetingClientError: LocalizedError {
+    case unsupportedPlatform
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedPlatform:
+            return "swift-holons connect is only available for macOS in this example"
+        }
     }
 }
 
