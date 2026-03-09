@@ -1,24 +1,22 @@
 import Foundation
 #if os(macOS)
-import Holons
+import Darwin
 #endif
 
 /// Manages the lifecycle of the Go greeting daemon subprocess.
 ///
-/// On macOS the daemon is staged as a discoverable holon and launched via `connect(slug)`.
+/// On macOS the daemon is launched as a bundled TCP subprocess.
 /// On iOS, tvOS, watchOS, and visionOS the app connects to an already running daemon.
 @MainActor
 final class DaemonProcess: ObservableObject {
     @Published var isRunning = false
     @Published var connectionError: String?
 
-    private static let holonSlug = "gudule-daemon-greeting-goswift"
-    private static let holonUUID = "2b519b2f-7a34-4957-a0ab-58c1b7fa9f95"
-    private static let familyName = "Greeting-Goswift"
-
     private var client: GreetingClient?
-    private var stageRoot: URL?
     private let configuration = DaemonConfiguration.current
+#if os(macOS)
+    private var daemonProcess: Process?
+#endif
 
     private var host: String { configuration.host }
     private var port: Int { configuration.port }
@@ -48,32 +46,16 @@ final class DaemonProcess: ObservableObject {
 
 #if os(macOS)
     private func startEmbeddedDaemon(at path: String) {
-        var root: URL?
         do {
-            root = try stageHolonRoot(binaryPath: path)
-            guard let root else {
-                throw CocoaError(.fileNoSuchFile)
-            }
-            stageRoot = root
-
-            let previousDirectory = FileManager.default.currentDirectoryPath
-            guard FileManager.default.changeCurrentDirectoryPath(root.path) else {
-                throw CocoaError(.fileNoSuchFile)
-            }
-            defer {
-                FileManager.default.changeCurrentDirectoryPath(previousDirectory)
-            }
-
-            let channel = try connect(Self.holonSlug)
-            client = GreetingClient(channel: channel) {
-                try disconnect(channel)
-            }
+            let launched = try launchDaemon(binaryPath: path)
+            daemonProcess = launched.process
+            client = try GreetingClient.direct(host: launched.host, port: launched.port)
             isRunning = true
         } catch {
-            if let root {
-                try? FileManager.default.removeItem(at: root)
+            if let process = daemonProcess {
+                stopDaemonProcess(process)
             }
-            stageRoot = nil
+            daemonProcess = nil
             connectionError = "Failed to start bundled daemon: \(error.localizedDescription)"
             connectToRemoteDaemon()
         }
@@ -105,47 +87,67 @@ final class DaemonProcess: ObservableObject {
         return candidates
     }
 
-    private func stageHolonRoot(binaryPath: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("greeting-goswift-holon-\(UUID().uuidString)", isDirectory: true)
-        let holonDir = root
-            .appendingPathComponent("holons", isDirectory: true)
-            .appendingPathComponent(Self.holonSlug, isDirectory: true)
-        try FileManager.default.createDirectory(at: holonDir, withIntermediateDirectories: true)
-        try buildManifest(binaryPath: binaryPath)
-            .write(to: holonDir.appendingPathComponent("holon.yaml"), atomically: true, encoding: .utf8)
-        return root
+    private func launchDaemon(binaryPath: String) throws -> (process: Process, host: String, port: Int) {
+        let listenHost = "127.0.0.1"
+        let listenPort = port
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: binaryPath)
+        process.arguments = ["serve", "--listen", "tcp://\(listenHost):\(listenPort)"]
+        process.standardOutput = FileHandle.nullDevice
+
+        let stderr = Pipe()
+        let collector = StringCollector()
+        let queue = LineQueue()
+        process.standardError = stderr
+        startLineReader(handle: stderr.fileHandleForReading, queue: queue, collector: collector)
+
+        try process.run()
+
+        do {
+            try waitForTCPAccept(
+                process: process,
+                host: listenHost,
+                port: listenPort,
+                collector: collector,
+                timeout: 5.0
+            )
+            Thread.sleep(forTimeInterval: 1.0)
+            return (process, listenHost, listenPort)
+        } catch {
+            stopDaemonProcess(process)
+            throw error
+        }
     }
 
-    private func buildManifest(binaryPath: String) -> String {
-        let escapedPath = binaryPath
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return """
-schema: holon/v0
-uuid: "\(Self.holonUUID)"
-given_name: greeting-daemon
-family_name: "\(Self.familyName)"
-motto: Greets users in 56 languages — a Goswift recipe example.
-composer: B. ALTER
-clade: deterministic/pure
-status: draft
-born: "2026-03-06"
-generated_by: manual
-kind: native
-build:
-  runner: go-module
-artifacts:
-  binary: "\(escapedPath)"
-""" + "\n"
+    private func waitForTCPAccept(
+        process: Process,
+        host: String,
+        port: Int,
+        collector: StringCollector,
+        timeout: TimeInterval
+    ) throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if socketConnects(host: host, port: port) {
+                return
+            }
+            if !process.isRunning {
+                let stderr = collector.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !stderr.isEmpty {
+                    throw DaemonLaunchError.startupFailed(stderr)
+                }
+                throw DaemonLaunchError.startupFailed("daemon exited before accepting TCP connections")
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        throw DaemonLaunchError.startupTimedOut
     }
+
 #endif
 
     func stop() {
         let currentClient = client
         client = nil
-        let root = stageRoot
-        stageRoot = nil
 
         do {
             try currentClient?.close()
@@ -154,8 +156,10 @@ artifacts:
         }
 
 #if os(macOS)
-        if let root {
-            try? FileManager.default.removeItem(at: root)
+        let process = daemonProcess
+        daemonProcess = nil
+        if let process {
+            stopDaemonProcess(process)
         }
 #endif
         isRunning = false
@@ -180,8 +184,8 @@ artifacts:
 
     deinit {
         try? client?.close()
-        if let stageRoot {
-            try? FileManager.default.removeItem(at: stageRoot)
+        if let daemonProcess {
+            stopDaemonProcess(daemonProcess)
         }
     }
 }
@@ -226,3 +230,139 @@ enum DaemonError: LocalizedError {
         }
     }
 }
+
+#if os(macOS)
+private final class LineQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var lines: [String] = []
+
+    func push(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+        semaphore.signal()
+    }
+
+    func pop(timeout: TimeInterval) -> String? {
+        let result = semaphore.wait(timeout: .now() + timeout)
+        guard result == .success else {
+            return nil
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard !lines.isEmpty else {
+            return nil
+        }
+        return lines.removeFirst()
+    }
+}
+
+private final class StringCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
+
+    var text: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return lines.joined(separator: "\n")
+    }
+}
+
+private func startLineReader(handle: FileHandle, queue: LineQueue, collector: StringCollector) {
+    DispatchQueue.global(qos: .utility).async {
+        var buffer = Data()
+
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                let trailing = String(data: buffer, encoding: .utf8)?
+                    .trimmingCharacters(in: .newlines) ?? ""
+                if !trailing.isEmpty {
+                    collector.append(trailing)
+                    queue.push(trailing)
+                }
+                return
+            }
+
+            buffer.append(chunk)
+            while let newline = buffer.firstIndex(of: 0x0A) {
+                let lineData = buffer[..<newline]
+                buffer.removeSubrange(...newline)
+                guard let line = String(data: lineData, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !line.isEmpty else {
+                    continue
+                }
+                collector.append(line)
+                queue.push(line)
+            }
+        }
+    }
+}
+
+private func socketConnects(host: String, port: Int) -> Bool {
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = in_port_t(UInt16(port).bigEndian)
+
+    guard inet_pton(AF_INET, host, &address.sin_addr) == 1 else {
+        return false
+    }
+
+    let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+    guard descriptor >= 0 else {
+        return false
+    }
+    defer { close(descriptor) }
+
+    var socketAddress = address
+    let result = withUnsafePointer(to: &socketAddress) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    return result == 0
+}
+
+private enum DaemonLaunchError: LocalizedError {
+    case startupFailed(String)
+    case startupTimedOut
+
+    var errorDescription: String? {
+        switch self {
+        case let .startupFailed(message):
+            return message
+        case .startupTimedOut:
+            return "timed out waiting for the daemon to advertise a TCP address"
+        }
+    }
+}
+
+private func stopDaemonProcess(_ process: Process) {
+    guard process.isRunning else { return }
+
+    process.terminate()
+
+    let gracefulDeadline = Date().addingTimeInterval(2.0)
+    while process.isRunning && Date() < gracefulDeadline {
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+
+    if process.isRunning {
+        kill(process.processIdentifier, SIGKILL)
+        let forcedDeadline = Date().addingTimeInterval(1.0)
+        while process.isRunning && Date() < forcedDeadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+    }
+}
+#endif

@@ -7,7 +7,7 @@ import SwiftProtobuf
 /// gRPC client for the GreetingService running on the Go daemon.
 final class GreetingClient: GRPCClient, @unchecked Sendable {
     let channel: GRPCChannel
-    var defaultCallOptions = CallOptions()
+    var defaultCallOptions = CallOptions(timeLimit: .timeout(.seconds(2)))
     private let closeAction: () throws -> Void
 
     init(channel: GRPCChannel, closeAction: @escaping () throws -> Void) {

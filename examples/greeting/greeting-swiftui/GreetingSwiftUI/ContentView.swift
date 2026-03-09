@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Main view: language picker on the left, greeting on the right.
 struct ContentView: View {
     @ObservedObject var daemon: DaemonProcess
     @State private var languages: [Language] = []
@@ -10,104 +9,83 @@ struct ContentView: View {
     @State private var error: String?
 
     var body: some View {
-        Group {
-#if os(watchOS)
-            VStack(spacing: 12) {
-                languageList
-                greetingPanel
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Gudule Greeting")
+                .font(.largeTitle.bold())
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Language")
+                    .font(.headline)
+                Picker("Language", selection: $selectedCode) {
+                    ForEach(languages) { language in
+                        Text("\(language.native) (\(language.name))")
+                            .tag(language.code)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("language-picker")
             }
-#else
-            HStack(spacing: 0) {
-                languageList
-                Divider()
-                greetingPanel
+
+            TextField("Your name", text: $userName)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("name-input")
+
+            Button("Greet") {
+                Task { await greet(code: selectedCode) }
             }
-#endif
+            .disabled(selectedCode.isEmpty)
+            .accessibilityIdentifier("greet-button")
+
+            Group {
+                if let error {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                } else if greeting.isEmpty {
+                    Text("The greeting will appear here.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(greeting)
+                        .font(.largeTitle)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 180)
+            .padding()
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+            }
+            .accessibilityIdentifier("greeting-output")
+
+            Spacer(minLength: 0)
         }
+        .frame(minWidth: 480, minHeight: 360, alignment: .topLeading)
+        .padding(24)
         .task { await loadLanguages() }
     }
 
-    // MARK: - Language List
-
-    private var languageList: some View {
-        List {
-            ForEach(Array(languages.enumerated()), id: \.element.id) { _, lang in
-                Button {
-                    selectedCode = lang.code
-                    Task { await greet(code: lang.code) }
-                } label: {
-                    HStack {
-                        Text(lang.native)
-                            .font(.body)
-                        Spacer()
-                        if selectedCode == lang.code {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        Text(lang.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-#if !os(watchOS)
-        .frame(minWidth: 200)
-#endif
-    }
-
-    // MARK: - Greeting Panel
-
-    private var greetingPanel: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            if let error {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
-            } else if greeting.isEmpty {
-                Text("Select a language")
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(greeting)
-                    .font(.largeTitle)
-                    .multilineTextAlignment(.center)
-            }
-            Spacer()
-            HStack {
-                TextField("Your name", text: $userName)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.secondary.opacity(0.12))
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                    }
-                    .frame(maxWidth: 200)
-                Button("Greet") {
-                    Task { await greet(code: selectedCode) }
-                }
-                .disabled(selectedCode.isEmpty)
-            }
-            .padding(.bottom, 20)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-    }
-
-    // MARK: - Data Fetching
-
     private func loadLanguages() async {
-        do {
-            languages = try await daemon.listLanguages()
-            error = nil
-        } catch {
-            self.error = "Failed to load languages: \(error.localizedDescription)"
+        daemon.start()
+
+        for attempt in 0..<3 {
+            do {
+#if os(macOS)
+                if attempt > 0 {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } else {
+                    try await Task.sleep(nanoseconds: 300_000_000)
+                }
+#endif
+                languages = try await daemon.listLanguages()
+                selectedCode = languages.first(where: { $0.code == "en" })?.code ?? languages.first?.code ?? ""
+                error = nil
+                return
+            } catch {
+                if attempt == 2 {
+                    self.error = "Failed to load languages: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
