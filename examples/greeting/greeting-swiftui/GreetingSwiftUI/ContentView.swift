@@ -83,7 +83,8 @@ struct ContentView: View {
                 return
             } catch {
                 if attempt == 2 {
-                    self.error = "Failed to load languages: \(error.localizedDescription)"
+                    let detail = daemon.connectionError ?? error.localizedDescription
+                    self.error = "Failed to load languages: \(detail)"
                 }
             }
         }

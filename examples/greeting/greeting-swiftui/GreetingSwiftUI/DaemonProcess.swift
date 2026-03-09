@@ -33,7 +33,7 @@ final class DaemonProcess: ObservableObject {
             isRunning = true
         } catch {
             cleanupStageRoot()
-            connectionError = "Failed to start bundled daemon: \(error.localizedDescription)"
+            connectionError = "Failed to start bundled daemon: \(String(describing: error))"
             isRunning = false
         }
 #else
@@ -98,8 +98,8 @@ enum DaemonError: LocalizedError {
 
 #if os(macOS)
 private extension DaemonProcess {
-    static let holonSlug = "gudule-greeting-goswift"
-    static let holonUUID = "3c62ac3f-8b45-5068-b1bc-69d2c8fb0a06"
+    static let holonSlug = "greeting-daemon-greeting-goswift"
+    static let holonUUID = "2b519b2f-7a34-4957-a0ab-58c1b7fa9f95"
     static let familyName = "Greeting-Goswift"
     static let daemonBinaryName = "gudule-daemon-greeting-goswift"
     static let buildRunner = "go-module"
@@ -169,7 +169,6 @@ private extension DaemonProcess {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             try manifest(for: binaryPath)
                 .write(to: root.appendingPathComponent("holon.yaml"), atomically: true, encoding: .utf8)
-            try copyProtoSources(to: root.appendingPathComponent("protos", isDirectory: true))
             return root
         } catch {
             try? FileManager.default.removeItem(at: root)
@@ -181,7 +180,7 @@ private extension DaemonProcess {
         """
         schema: holon/v0
         uuid: "\(Self.holonUUID)"
-        given_name: "gudule"
+        given_name: "greeting-daemon"
         family_name: "\(Self.familyName)"
         motto: "Greets users in 56 languages."
         composer: "B. ALTER"
@@ -201,37 +200,6 @@ private extension DaemonProcess {
         value.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
-
-    func copyProtoSources(to destination: URL) throws {
-        let source = try resolveProtoSource()
-        try FileManager.default.copyItem(at: source, to: destination)
-    }
-
-    func resolveProtoSource() throws -> URL {
-        for candidate in protoSourceCandidates() {
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
-               isDirectory.boolValue {
-                return candidate
-            }
-        }
-        throw DaemonStartError.protoDirectoryNotFound
-    }
-
-    func protoSourceCandidates() -> [URL] {
-        let currentDirectory = URL(
-            fileURLWithPath: FileManager.default.currentDirectoryPath,
-            isDirectory: true
-        )
-
-        return [
-            currentDirectory.appendingPathComponent("Protos", isDirectory: true),
-            currentDirectory
-                .appendingPathComponent("../greeting-daemon", isDirectory: true)
-                .appendingPathComponent("protos", isDirectory: true),
-        ]
-    }
-
     func cleanupStageRoot() {
         guard let root = stageRoot else { return }
         stageRoot = nil
@@ -243,7 +211,6 @@ private enum DaemonStartError: LocalizedError {
     case binaryNotFound(String)
     case failedToStageRoot(String)
     case failedToEnterRoot(String)
-    case protoDirectoryNotFound
 
     var errorDescription: String? {
         switch self {
@@ -253,8 +220,6 @@ private enum DaemonStartError: LocalizedError {
             return "Failed to stage holon root: \(message)"
         case let .failedToEnterRoot(path):
             return "Failed to enter staged holon root: \(path)"
-        case .protoDirectoryNotFound:
-            return "Greeting proto sources not found"
         }
     }
 }
