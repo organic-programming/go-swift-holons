@@ -1,8 +1,8 @@
 # ── Identity ──────────────────────────────────────────
 schema: holon/v0
 uuid: "2b519b2f-7a34-4957-a0ab-58c1b7fa9f95"
-given_name: greeting-daemon
-family_name: Greeting-Goswift
+given_name: gudule
+family_name: Greeting-Daemon-Goswift
 motto: Greets users in 56 languages — a Goswift recipe example.
 composer: B. ALTER
 clade: deterministic/pure
