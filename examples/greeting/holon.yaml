@@ -101,17 +101,4 @@ requires:
   files: [greeting-daemon/go.mod, greeting-swiftui/Package.swift]
 platforms: [macos, ios, ios-simulator, tvos, watchos, visionos]
 artifacts:
-  primary_by_target:
-    macos:
-      debug: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
-    ios:
-      debug: greeting-swiftui/.build/xcode/ios/Build/Products/Debug-iphoneos/GreetingSwiftUI
-    ios-simulator:
-      debug: greeting-swiftui/.build/xcode/ios-simulator/Build/Products/Debug-iphonesimulator/GreetingSwiftUI.app
-    tvos:
-      debug: greeting-swiftui/.build/xcode/tvos/Build/Products/Debug-appletvos/GreetingSwiftUI
-    watchos:
-      debug: greeting-swiftui/.build/xcode/watchos/Build/Products/Debug-watchos/GreetingSwiftUI
-    visionos:
-      debug: greeting-swiftui/.build/xcode/visionos/Build/Products/Debug-xros/GreetingSwiftUI
-  binary: gudule-greeting-goswift
+  primary: greeting-swiftui/.build/xcode/macos/Build/Products/Debug/GreetingSwiftUI.app
